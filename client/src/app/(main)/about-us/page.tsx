@@ -1,6 +1,7 @@
 "use client";
 import { Icon } from "@iconify/react";
 import Link from "next/link";
+import VoiceTriggerButton from "@/components/VoiceTriggerButton";
 
 export default function AboutUsPage() {
   return (
@@ -122,10 +123,10 @@ export default function AboutUsPage() {
               <p className="text-slate-500 text-lg font-medium">Our support team is available 24/7 to guide you through the process.</p>
             </div>
           </div>
-          <button className="premium-button px-12 py-5 text-white font-black text-xl rounded-2xl shadow-xl shadow-indigo-500/20 active:scale-95 transition-transform flex items-center gap-3">
+          <div className="premium-button px-12 py-5 text-white font-black text-xl rounded-2xl shadow-xl shadow-indigo-500/20 flex items-center gap-3">
             <Icon icon="lucide:phone-call" />
-            Contact Support
-          </button>
+            +91-800-123-4567
+          </div>
         </div>
       </section>
 

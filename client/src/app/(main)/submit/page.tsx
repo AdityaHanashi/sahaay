@@ -5,6 +5,7 @@ import Link from "next/link";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { generateComplaintId, getDepartmentPrefix } from "@/lib/generateId";
+import { useVoice } from "@/context/VoiceContext";
 
 const ISSUE_MAP: Record<string, string[]> = {
   "Law Enforcement & Cybercrime (A)": [
@@ -61,6 +62,38 @@ export default function SubmitReportPage() {
   const [tempRole, setTempRole] = useState("Citizen");
   const [otherRoleText, setOtherRoleText] = useState("");
   const [showRolePrompt, setShowRolePrompt] = useState(false);
+  
+  // Location Consent States
+  const [showLocationConsent, setShowLocationConsent] = useState(false);
+  const [locationData, setLocationData] = useState<{lat: number, lng: number, address: string, source: string} | null>(null);
+  const [consentMessage, setConsentMessage] = useState("");
+
+  const isPrivacyDept = department && (
+    department.includes("Income Tax") || 
+    department.includes("Municipal") || 
+    department.includes("Social Welfare")
+  );
+
+  const { aiData, setAiData } = useVoice();
+
+  useEffect(() => {
+    if (aiData) {
+      setDepartment(aiData.department);
+      
+      const allIssues = Object.values(ISSUE_MAP).flat();
+      if (allIssues.includes(aiData.issueTitle)) {
+        setIssue(aiData.issueTitle);
+      } else {
+        setIssue("Other");
+        setOtherIssue(aiData.issueTitle);
+      }
+      
+      setDesc(aiData.description);
+      setStep(3); // Fast forward to Upload Proof
+      
+      setAiData(null); // Clear data so it doesn't trigger again
+    }
+  }, [aiData, setAiData]);
 
   useEffect(() => {
     // Google Maps Script is now loaded in root layout
@@ -79,15 +112,73 @@ export default function SubmitReportPage() {
 
   useEffect(() => {
     if (step === 5) {
-      detectLocation();
+      if (!isPrivacyDept) {
+        detectLocation();
+      } else {
+        // For privacy depts, we wait for manual entry or plane icon click
+        setIsManualArea(true); 
+        if (area === "Detecting...") {
+          setArea("");
+        }
+      }
     }
-  }, [step]);
+  }, [step, isPrivacyDept]);
 
-  const detectLocation = async () => {
+  const detectLocation = async (hasConsented = false) => {
     setIsDetecting(true);
     const result = await getGeolocation();
     setArea(result);
     setIsDetecting(false);
+    
+    // If we have coordinates, we could store them in locationData here
+    // but the getGeolocation helper currently only returns the address string.
+    // Let's refine getGeolocation to also return coords if possible.
+  };
+
+  const handlePlaneClick = () => {
+    setShowLocationConsent(true);
+  };
+
+  const handleConsentYes = async () => {
+    setShowLocationConsent(false);
+    setIsDetecting(true);
+    
+    if (!navigator.geolocation) {
+      setArea("Geolocation not supported");
+      setIsDetecting(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        
+        // Use high-precision coordinates directly
+        const coordinateString = `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
+        
+        console.log("Precise location captured:", coordinateString);
+        setArea(coordinateString);
+        setSearchQuery(coordinateString);
+        setLocationData({ lat, lng, address: coordinateString, source: "precise-consented" });
+        setIsDetecting(false);
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        setConsentMessage("Location access failed. Please enter manually.");
+        setIsDetecting(false);
+      },
+      { 
+        timeout: 10000, 
+        enableHighAccuracy: true, 
+        maximumAge: 0 
+      }
+    );
+  };
+
+  const handleConsentNo = () => {
+    setShowLocationConsent(false);
+    setConsentMessage("Please enter the issue location manually");
   };
 
   const handleSaveRole = () => {
@@ -307,7 +398,8 @@ export default function SubmitReportPage() {
         agreeCount: 0,
         disagreeCount: 0,
         createdAt: serverTimestamp(),
-        createdVia: department.includes("Call Assistant") ? "call" : "manual"
+        createdVia: department.includes("Call Assistant") ? "call" : "manual",
+        locationMetadata: locationData
       });
 
       console.log("Submit success");
@@ -337,9 +429,7 @@ export default function SubmitReportPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-5 justify-center animate-fade-in-up" style={{animationDelay: "0.4s"}}>
-          <button className="premium-button px-10 py-5 text-white font-bold rounded-2xl shadow-lg">
-            Download PDF Receipt
-          </button>
+
           <Link href="/track" className="px-10 py-5 bg-white border-2 border-slate-200 text-slate-900 font-bold rounded-2xl hover:bg-slate-50 transition-all shadow-md">
             Track Status
           </Link>
@@ -559,7 +649,90 @@ export default function SubmitReportPage() {
                   Location Detection
                 </h2>
                 
-                {isManualArea ? (
+                {isPrivacyDept ? (
+                  <div className="space-y-6">
+                    <div className="bg-white/80 border border-slate-100 p-8 rounded-[2.5rem] shadow-lg animate-fade-in relative z-50">
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 px-1">Location of Issue</label>
+                      <div className="flex flex-col sm:flex-row gap-4 relative">
+                        <div className="flex-grow relative">
+                          <input 
+                            type="text" 
+                            value={area}
+                            onChange={(e) => { 
+                              setArea(e.target.value);
+                              setSearchQuery(e.target.value); 
+                              fetchSuggestions(e.target.value);
+                            }}
+                            placeholder="Enter the location of the issue..."
+                            className={`w-full bg-white border ${apiError ? 'border-red-300' : 'border-slate-200'} text-slate-900 py-4 px-6 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all font-bold premium-input`}
+                          />
+                          {apiError && <p className="text-[10px] text-red-500 mt-1 font-bold px-1">⚠️ {apiError}</p>}
+                          {suggestions.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-100 rounded-2xl shadow-2xl overflow-hidden z-[100] animate-fade-in">
+                              {suggestions.map((s, i) => (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  onClick={() => handleSuggestionClick(s)}
+                                  className="w-full text-left px-6 py-4 hover:bg-indigo-50 transition-colors border-b border-slate-50 last:border-0"
+                                >
+                                  <p className="font-bold text-slate-900 text-sm">{s.structured_formatting.main_text}</p>
+                                  <p className="text-slate-500 text-xs">{s.structured_formatting.secondary_text}</p>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={handlePlaneClick}
+                          disabled={isDetecting}
+                          className={`px-6 py-4 bg-indigo-600 text-white rounded-2xl font-bold text-xl transition-all h-fit shadow-lg shadow-indigo-500/20 ${isDetecting ? 'opacity-50 cursor-not-allowed' : 'hover:scale-110 active:scale-95'}`}
+                        >
+                          {isDetecting ? (
+                            <Icon icon="lucide:loader-2" className="animate-spin text-2xl" />
+                          ) : (
+                            "✈️"
+                          )}
+                        </button>
+                      </div>
+                      {consentMessage && (
+                        <p className="text-sm text-indigo-600 font-bold mt-4 px-1 animate-fade-in">
+                          {consentMessage}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Consent Popup */}
+                    {showLocationConsent && (
+                      <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md animate-fade-in">
+                        <div className="bg-white rounded-[3rem] p-10 max-w-md w-full shadow-2xl border border-white/20 animate-scale-in">
+                          <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mb-8 mx-auto">
+                            <Icon icon="lucide:map-pin" className="text-4xl" />
+                          </div>
+                          <h3 className="text-2xl font-black text-slate-900 text-center mb-4 leading-tight">Location Access</h3>
+                          <p className="text-slate-600 text-center mb-10 font-medium leading-relaxed">
+                            Are you comfortable sharing the exact issue location with admin? This helps us resolve your complaint with higher precision.
+                          </p>
+                          <div className="flex gap-4">
+                            <button 
+                              onClick={handleConsentNo}
+                              className="flex-1 py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all"
+                            >
+                              No
+                            </button>
+                            <button 
+                              onClick={handleConsentYes}
+                              className="flex-1 py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                            >
+                              Yes
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : isManualArea ? (
                   <div className="bg-white/80 border border-slate-100 p-8 rounded-[2.5rem] shadow-lg animate-fade-in relative z-50">
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 px-1">Search Your Area</label>
                     <div className="flex flex-col sm:flex-row gap-4 relative">

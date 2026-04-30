@@ -1,6 +1,9 @@
 import { Icon } from "@iconify/react";
 import type { Metadata } from "next";
 import "./globals.css";
+import { VoiceProvider } from "@/context/VoiceContext";
+import VoiceSidebar from "@/components/voice/VoiceSidebar";
+import IdlePrompt from "@/components/voice/IdlePrompt";
 
 export const metadata: Metadata = {
   title: "Sahaay | Modern Grievance Platform",
@@ -19,7 +22,11 @@ export default function RootLayout({
         <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD1hUYxjmaZTauEfYlZ3i9dXFWUfGxQk0E&libraries=places" async defer></script>
       </head>
       <body>
-        {children}
+        <VoiceProvider>
+          {children}
+          <VoiceSidebar />
+          <IdlePrompt />
+        </VoiceProvider>
       </body>
     </html>
   );

@@ -1,6 +1,7 @@
 import { Icon } from "@iconify/react";
 import Link from "next/link";
 import Logo from "@/components/Logo";
+import ContactSupportButton from "@/components/ContactSupportButton";
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -56,9 +57,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             <div className="flex flex-col gap-4">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Platform</span>
               <div className="flex flex-col gap-3">
-                <a href="tel:+9185203146" className="text-slate-600 hover:text-indigo-600 font-medium transition-colors flex flex-col sm:flex-row sm:items-center gap-1">
-                  Contact Us: <span className="text-indigo-600 font-bold">+91 85203146</span>
-                </a>
+                <ContactSupportButton />
                 <div className="text-slate-600 font-medium flex flex-col sm:flex-row sm:items-center gap-1">
                   Help Center: <span className="text-slate-500 text-sm">Gokul Road Hubli, Karnataka</span>
                 </div>

@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Icon } from "@iconify/react";
+import VoiceTriggerButton from "@/components/VoiceTriggerButton";
 
 export default function HomePage() {
   const [role, setRole] = useState("Citizen");
@@ -180,10 +181,10 @@ export default function HomePage() {
             Our support team is available 24/7 to guide you through the reporting process if you are confused.
           </p>
         </div>
-        <a href="#" className="premium-button whitespace-nowrap px-10 py-5 text-white font-bold rounded-2xl flex items-center gap-3 ml-auto shadow-xl">
+        <VoiceTriggerButton className="premium-button whitespace-nowrap px-10 py-5 text-white font-bold rounded-2xl flex items-center gap-3 ml-auto shadow-xl">
           Contact Support
           <Icon icon="lucide:phone-call" className="text-xl"></Icon>
-        </a>
+        </VoiceTriggerButton>
       </div>
 
     </>

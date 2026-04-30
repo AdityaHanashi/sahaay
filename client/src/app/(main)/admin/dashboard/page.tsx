@@ -15,6 +15,10 @@ function DashboardContent() {
    const [resDesc, setResDesc] = useState("");
    const [resFile, setResFile] = useState<string>("");
    const [isProcessingRes, setIsProcessingRes] = useState(false);
+ 
+   const [isSummarizing, setIsSummarizing] = useState(false);
+   const [aiSummary, setAiSummary] = useState("");
+   const [showAiModal, setShowAiModal] = useState(false);
 
   useEffect(() => {
     // Get prefix from localStorage set during login
@@ -60,6 +64,39 @@ function DashboardContent() {
 
     return () => unsubscribe();
   }, [activePrefix, selectedReport?.id]);
+
+  const handleSummarize = async () => {
+    if (!selectedReport) return;
+    setIsSummarizing(true);
+    try {
+      const response = await fetch("/api/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedReport.id,
+          issueTitle: selectedReport.title,
+          description: selectedReport.desc,
+          department: deptName,
+          area: selectedReport.area
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.summary) {
+        setAiSummary(data.summary);
+      } else {
+        setAiSummary("Error: " + (data.error || "Failed to generate summary"));
+      }
+      setShowAiModal(true);
+    } catch (err: any) {
+      console.error("AI Summarize error:", err);
+      setAiSummary("Unable to generate AI report. Please try again.");
+      setShowAiModal(true);
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
 
   const filteredReports = reports;
 
@@ -125,6 +162,9 @@ function DashboardContent() {
 
   const handleUpdateStatus = async () => {
     if (!selectedReport) return;
+
+    const statusFlow = ["Submitted", "Under Review", "In Progress", "Action Taken", "Resolved"];
+    const currentIndex = statusFlow.indexOf(selectedReport.status);
     
      if (currentIndex !== -1 && currentIndex < statusFlow.length - 1) {
        const nextStatus = statusFlow[currentIndex + 1];
@@ -419,6 +459,23 @@ function DashboardContent() {
  
                  <div className="flex gap-4 pt-4">
                    <button 
+                     onClick={handleSummarize}
+                     disabled={isSummarizing || selectedReport.status === "Rejected"}
+                     className="flex-1 py-5 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 transition-all tracking-widest text-xs disabled:opacity-50 active:scale-95 flex items-center justify-center gap-2"
+                   >
+                     {isSummarizing ? (
+                       <>
+                         <Icon icon="lucide:loader-2" className="animate-spin text-lg" />
+                         SUMMARIZING...
+                       </>
+                     ) : (
+                       <>
+                         <Icon icon="lucide:sparkles" className="text-lg" />
+                         AI SUMMARIZE
+                       </>
+                     )}
+                   </button>
+                   <button 
                      onClick={handleReject}
                      disabled={selectedReport.status === "Resolved" || selectedReport.status === "Rejected"}
                      className="flex-1 py-5 bg-white border-2 border-red-200 text-red-600 font-black rounded-2xl hover:bg-red-50 transition-all tracking-widest text-xs disabled:opacity-30 active:scale-95"
@@ -523,6 +580,56 @@ function DashboardContent() {
               alt="Full Preview" 
               className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl shadow-black/50" 
             />
+          </div>
+        </div>
+      )}
+
+      {/* AI Summary Modal */}
+      {showAiModal && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 sm:p-6 md:p-10 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+          <div className="bg-white w-full max-w-3xl rounded-[2.5rem] shadow-2xl flex flex-col max-h-full overflow-hidden animate-scale-in border border-indigo-100">
+            <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-500 to-purple-600 text-white">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md">
+                  <Icon icon="lucide:sparkles" className="text-2xl" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black tracking-tight">AI Generated Report</h3>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Formal Government Format</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowAiModal(false)}
+                className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+              >
+                <Icon icon="lucide:x" className="text-2xl" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-10 bg-slate-50/50">
+              <div className="bg-white p-12 rounded-[2rem] shadow-sm border border-slate-200 font-serif leading-relaxed text-slate-800 whitespace-pre-wrap selection:bg-indigo-100">
+                {aiSummary}
+              </div>
+            </div>
+
+            <div className="p-8 bg-white border-t border-slate-100 flex gap-4">
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(aiSummary);
+                  alert("Report copied to clipboard!");
+                }}
+                className="flex-1 py-5 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 transition-all tracking-widest text-xs flex items-center justify-center gap-3 active:scale-95 shadow-xl shadow-indigo-500/20"
+              >
+                <Icon icon="lucide:copy" className="text-lg" />
+                COPY REPORT
+              </button>
+              <button 
+                onClick={() => setShowAiModal(false)}
+                className="px-10 py-5 bg-white border-2 border-slate-100 text-slate-500 font-black rounded-2xl hover:bg-slate-50 transition-all tracking-widest text-xs active:scale-95"
+              >
+                CLOSE
+              </button>
+            </div>
           </div>
         </div>
       )}
