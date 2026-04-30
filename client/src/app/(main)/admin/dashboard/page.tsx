@@ -5,11 +5,24 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, where, doc, updateDoc } from "firebase/firestore";
+interface Report {
+  firestoreId: string;
+  id: string;
+  title: string;
+  area: string;
+  status: string;
+  desc: string;
+  proofImages: string[];
+  createdAt: number;
+  resolutionDesc?: string;
+  resolutionProof?: string;
+  [key: string]: any;
+}
 
 function DashboardContent() {
   const searchParams = useSearchParams();
   const deptName = searchParams.get("dept") || "Cybercrime";
-  const [selectedReport, setSelectedReport] = useState<any>(null);
+  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
    const [activePrefix, setActivePrefix] = useState<string>("");
  
    const [resDesc, setResDesc] = useState("");
@@ -26,7 +39,7 @@ function DashboardContent() {
     setActivePrefix(savedPrefix);
   }, []);
 
-  const [reports, setReports] = useState<any[]>([]);
+  const [reports, setReports] = useState<Report[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -34,7 +47,7 @@ function DashboardContent() {
 
     const q = query(collection(db, "complaints"), where("prefix", "==", activePrefix));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
+      const data: Report[] = snapshot.docs.map(doc => ({
         firestoreId: doc.id,
         id: doc.data().complaintId,
         title: doc.data().issueTitle,
@@ -179,7 +192,7 @@ function DashboardContent() {
  
        try {
          const reportRef = doc(db, "complaints", selectedReport.firestoreId);
-         const updateData: any = { status: nextStatus };
+         const updateData: Partial<Report> = { status: nextStatus };
          
          if (nextStatus === "Resolved") {
            updateData.resolutionDesc = resDesc;
